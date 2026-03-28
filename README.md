@@ -23,8 +23,8 @@ The pipeline performs 16 sequential steps:
 | 11 | MultiQC | Aggregated QC report across all steps |
 | 12 | samtools | Split aligned BAMs into plus- and minus-strand |
 | 13 | samtools merge | Merge IgG replicates per strand per condition (peak calling control) |
-| 14 | MACS2 | Peak calling — individual IP replicates vs merged IgG, per strand |
-| 15 | MACS2 | Peak calling — pooled IP replicates vs merged IgG, per strand |
+| 14 | MACS3 | Peak calling — individual IP replicates vs merged IgG, per strand |
+| 15 | MACS3 | Peak calling — pooled IP replicates vs merged IgG, per strand |
 | 16 | HOMER | De novo motif discovery on every narrowPeak file (`-rna` mode) |
 
 ---
