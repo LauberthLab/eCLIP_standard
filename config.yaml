@@ -1,0 +1,34 @@
+# Metadata file (TSV): columns sample, condition, type, replicate, fastq
+metadata: "metadata.tsv"
+
+# STAR genome index directory
+genome_dir: "/projects/p32170/humangenome" # change it to hg38+rDNA for the specific analysis 
+
+# Gencode annotation GTF
+gtf: "/projects/p32170/Genome/gencode.v45.annotation.gtf"
+
+# Top-level results directory (will be created automatically)
+results_dir: "results"
+
+# ── Differential Expression ──────────────────────────────────────────────────
+# Options: "IgG" | "Input"
+de_control: "IgG"
+min_cpm: 0.3
+lfc_threshold:  0.5849
+padj_threshold: 0.05
+
+# ── BigWig generation (bamCompare) ───────────────────────────────────────────
+bin_size:        1
+normalize_using: "RPKM"   # RPKM | CPM | BPM | RPGC | None
+pseudocount:     1
+
+# ── Peak calling (MACS2 / MACS3) ─────────────────────────────────────────────
+# Set macs_cmd to "macs3" if using MACS3 (module load MACS2 provides macs2)
+macs_cmd:    "macs2"
+genome_size: "hs"          # hs = human, mm = mouse
+extsize:     30            # fragment extension size (--nomodel mode)
+
+# ── HOMER motif finding ───────────────────────────────────────────────────────
+homer_genome:        "hg38"
+homer_preparsed_dir: "results/homer_preparsed"   # shared cache across runs
+homer_len:           "5,6,7,8,9,10"              # motif lengths to search

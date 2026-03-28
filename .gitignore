@@ -1,0 +1,48 @@
+# Pipeline outputs 
+results/
+
+# Snakemake internals 
+.snakemake/
+
+# SLURM logs (if written outside results/) 
+slurm-*.out
+slurm-*.err
+
+# Raw data (large; track paths in metadata.tsv, not the files themselves) 
+*.fastq.gz
+*.fq.gz
+*.bam
+*.bam.bai
+*.bw
+*.bigwig
+*.bedGraph
+*.narrowPeak
+*.broadPeak
+
+# HOMER preparsed cache 
+homer_preparsed/
+
+# Python 
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# R 
+.Rhistory
+.RData
+.Rproj.user/
+
+# Conda / environments 
+.conda/
+*.egg-info/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*.swo
+*~
+.vscode/
+.idea/

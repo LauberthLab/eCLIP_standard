@@ -1,0 +1,29 @@
+cluster:
+  "sbatch
+    --account={resources.account}
+    --partition={resources.partition}
+    --nodes=1
+    --ntasks={resources.ntasks}
+    --mem={resources.mem}
+    --time={resources.time}
+    --job-name=eclip_{rule}_{wildcards}
+    --output=results/logs/slurm/{rule}_%j.out
+    --error=results/logs/slurm/{rule}_%j.err"
+
+default-resources:
+  - account="p32170"
+  - partition="short"
+  - ntasks=4
+  - mem="8gb"
+  - time="1:00:00"
+
+jobs: 50
+latency-wait: 60
+rerun-incomplete: true
+keep-going: true
+reason: true
+printshellcmds: true
+
+localrules:
+  - all
+  - process_featurecounts

@@ -1,0 +1,7 @@
+sample	condition	type	replicate	fastq
+21161FL-30-01_S1	TOP1	IP	1	/projects/b1042/LauberthLab/TOP1_nucleolus/eCLIP_TOP1/fastq/21161FL-30-01_S1_R1.fastq.gz
+21161FL-30-02_S2	TOP1	IP	2	/projects/b1042/LauberthLab/TOP1_nucleolus/eCLIP_TOP1/fastq/21161FL-30-02_S2_R1.fastq.gz
+21161FL-30-05_S5	TOP1	IgG	1	/projects/b1042/LauberthLab/TOP1_nucleolus/eCLIP_TOP1_IgG/fastq/21161FL-30-05_S5_R1.fastq.gz
+21161FL-51-01-01_S1	TOP1	IgG	2	/projects/b1042/LauberthLab/TOP1_nucleolus/eCLIP_TOP1_IgG/fastq/21161FL-51-01-01_S1_L001_R1_001.fastq.gz
+21161FL-30-03_S3	TOP1	Input	1	/projects/b1042/LauberthLab/TOP1_nucleolus/eCLIP_TOP1/fastq/21161FL-30-03_S3_R1.fastq.gz
+21161FL-30-04_S4	TOP1	Input	2	/projects/b1042/LauberthLab/TOP1_nucleolus/eCLIP_TOP1/fastq/21161FL-30-04_S4_R1.fastq.gz
