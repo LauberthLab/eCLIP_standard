@@ -23,7 +23,3 @@ rerun-incomplete: true
 keep-going: true
 reason: true
 printshellcmds: true
-
-localrules:
-  - all
-  - process_featurecounts

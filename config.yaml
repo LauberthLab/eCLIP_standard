@@ -24,7 +24,7 @@ pseudocount:     1
 
 # ── Peak calling (MACS2 / MACS3) ─────────────────────────────────────────────
 # Set macs_cmd to "macs3" if using MACS3 (module load MACS2 provides macs2)
-macs_cmd:    "macs2"
+macs_cmd:    "macs3"
 genome_size: "hs"          # hs = human, mm = mouse
 extsize:     30            # fragment extension size (--nomodel mode)
 

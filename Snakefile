@@ -25,10 +25,31 @@ Usage:
     snakemake --profile slurm_profile --cores all
 """
 
+import re
 import pandas as pd
 from pathlib import Path
 
 configfile: "config.yaml"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Environment: load HPC modules for every shell job
+# Adjust module names to match your cluster (run `module avail <tool>`)
+# ─────────────────────────────────────────────────────────────────────────────
+shell.prefix(
+    "set -euo pipefail; "
+    "module purge; "
+    "module load fastqc; "
+    "module load cutadapt/4.2; "
+    "module load TrimGalore; "
+    "module load STAR; "
+    "module load samtools; "
+    "module load subread; "
+    "module load deeptools; "
+    "module load MACS3; "
+    "module load homer; "
+    "module load multiqc; "
+    "module load R; "
+)
 
 RESULTS = config["results_dir"]
 GENOME  = config["genome_dir"]
@@ -96,6 +117,9 @@ all_samples  = meta["sample"].tolist()
 ip_samples   = samples_of(type_="IP")
 avail_ctrls  = [t for t in ["IgG", "Input"] if t in meta["type"].values]
 
+wildcard_constraints:
+    sample = "|".join(re.escape(s) for s in all_samples)
+
 de_pairs = [
     (c, DE_CTRL) for c in conditions
     if samples_of(type_="IP", condition=c) and samples_of(type_=DE_CTRL, condition=c)
@@ -137,6 +161,8 @@ for cond in conditions:
 # ─────────────────────────────────────────────────────────────────────────────
 # rule all
 # ─────────────────────────────────────────────────────────────────────────────
+localrules: all, process_featurecounts
+
 rule all:
     input:
         expand(f"{RESULTS}/qc/fastqc/{{sample}}_fastqc.html", sample=all_samples),
@@ -205,7 +231,7 @@ rule star_align:
         log = f"{RESULTS}/aligned/{{sample}}Log.final.out",
     params: genome=GENOME, prefix=f"{RESULTS}/aligned/{{sample}}"
     log:    f"{RESULTS}/logs/star/{{sample}}.log"
-    resources: ntasks=20, mem="40gb", time="2:00:00", partition="short", account="p32170"
+    resources: ntasks=20, mem="100gb", time="2:00:00", partition="short", account="p32170"
     shell:
         """
         mkdir -p {RESULTS}/aligned
