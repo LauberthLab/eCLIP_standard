@@ -48,7 +48,7 @@ shell.prefix(
     "module load MACS3; "
     "module load homer; "
     "module load multiqc; "
-    "module load R; "
+    "module load R/4.2.0; "
 )
 
 RESULTS = config["results_dir"]
@@ -60,7 +60,7 @@ NORMALIZE   = config.get("normalize_using", "RPKM")
 PSEUDOCOUNT = config.get("pseudocount", 1)
 
 # Peak calling / motif config
-MACS_CMD        = config.get("macs_cmd",           "macs2")
+MACS_CMD        = config.get("macs_cmd",           "macs3")
 GENOME_SIZE     = config.get("genome_size",         "hs")
 EXTSIZE         = config.get("extsize",             30)
 HOMER_GENOME    = config.get("homer_genome",        "hg38")
@@ -210,7 +210,7 @@ rule trim_galore:
         report  = f"{RESULTS}/trimmed/{{sample}}_trimming_report.txt",
     params: outdir = f"{RESULTS}/trimmed"
     log:    f"{RESULTS}/logs/trim_galore/{{sample}}.log"
-    resources: ntasks=4, mem="8gb", time="1:00:00", partition="short", account="p32170"
+    resources: ntasks=4, mem="30gb", time="1:00:00", partition="short", account="p32170"
     shell:
         """
         mkdir -p {params.outdir}
@@ -269,7 +269,7 @@ rule featurecounts:
     shell:
         """
         mkdir -p {params.outdir}
-        featureCounts -T {resources.ntasks} -t exon -g gene_id -s 1 \
+        featureCounts -T {resources.ntasks} -t exon -g gene_name -s 1 \
             -a {params.gtf} -o {output.counts} {input.bams} 2> {log}
         """
 
@@ -280,7 +280,23 @@ rule process_featurecounts:
     input:  f"{RESULTS}/counts/raw_counts.txt"
     output: f"{RESULTS}/counts/processed_counts.txt"
     log:    f"{RESULTS}/logs/process_fc/process_fc.log"
-    shell:  "python scripts/process_fc.py {input} {output} 2> {log}"
+    run:
+        import os
+        fc = pd.read_csv(str(input), sep="\t", header=1)
+        fc = fc.drop(columns=["Chr","Start","End","Strand"], errors="ignore")
+        fc.columns = [
+            c if c in ("Geneid","Length")
+            else (os.path.basename(c).replace("Aligned.sortedByCoord.out.bam","")
+                  if "Aligned.sortedByCoord.out.bam" in os.path.basename(c)
+                  else os.path.basename(c).replace(".bam","").split("_S")[0]
+                       if "_S" in os.path.basename(c)
+                       else os.path.basename(c).replace(".bam",""))
+            for c in fc.columns
+        ]
+        os.makedirs(os.path.dirname(os.path.abspath(str(output))), exist_ok=True)
+        fc.to_csv(str(output), sep="\t", index=False)
+        with open(str(log), "w") as lf:
+            lf.write(f"Processed {len(fc)} genes x {len(fc.columns)-2} samples -> {output}\n")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. DESeq2 differential enrichment

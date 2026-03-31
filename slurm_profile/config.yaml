@@ -23,3 +23,5 @@ rerun-incomplete: true
 keep-going: true
 reason: true
 printshellcmds: true
+rerun-triggers:
+  - mtime
