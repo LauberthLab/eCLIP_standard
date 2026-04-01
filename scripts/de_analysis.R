@@ -1,4 +1,44 @@
-suppressMessages({ library(DESeq2); library(edgeR); library(optparse) })
+# Package check and setup 
+
+install_if_missing <- function(pkg, bioc=FALSE, version=NULL) {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    message(sprintf("Installing %s...", pkg))
+    
+    if (!requireNamespace("BiocManager", quietly = TRUE)) {
+      install.packages("BiocManager", repos="https://cloud.r-project.org")
+    }
+    
+    if (bioc) {
+      if (!is.null(version) && pkg == "DESeq2") {
+        install.packages(
+          "https://bioconductor.org/packages/3.16/bioc/src/contrib/DESeq2_1.38.3.tar.gz",
+          repos = NULL,
+          type = "source",
+          dependencies = TRUE
+        )
+      } else {
+        BiocManager::install(pkg, ask = FALSE, update = FALSE)
+      }
+    } else {
+      install.packages(pkg, repos="https://cloud.r-project.org")
+    }
+  }
+}
+# Install required packages
+install_if_missing("optparse")
+install_if_missing("edgeR", bioc=TRUE)
+install_if_missing("DESeq2", bioc=TRUE, version="1.38.3")
+
+# Load libraries
+suppressMessages({
+  library(DESeq2)
+  library(edgeR)
+  library(optparse)
+})
+
+
+
+
 
 option_list <- list(
   make_option("--counts",        type="character"),
