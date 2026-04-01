@@ -1,15 +1,17 @@
 suppressMessages({ library(DESeq2); library(edgeR); library(optparse) })
 
 option_list <- list(
-  make_option("--counts",    type="character"),
-  make_option("--metadata",  type="character"),
-  make_option("--condition", type="character"),
-  make_option("--control",   type="character", default="IgG"),
-  make_option("--min_cpm",   type="double",    default=0.3),
-  make_option("--lfc",       type="double",    default=0.5849),
-  make_option("--padj",      type="double",    default=0.05),
-  make_option("--out_all",   type="character"),
-  make_option("--out_sig",   type="character")
+  make_option("--counts",        type="character"),
+  make_option("--metadata",      type="character"),
+  make_option("--condition",     type="character"),
+  make_option("--control",       type="character", default="IgG"),
+  make_option("--batch_correct", type="character", default="true",
+              help="Enable batch correction: true or false [default: true]"),
+  make_option("--min_cpm",       type="double",    default=0.3),
+  make_option("--lfc",           type="double",    default=0.5849),
+  make_option("--padj",          type="double",    default=0.05),
+  make_option("--out_all",       type="character"),
+  make_option("--out_sig",       type="character")
 )
 opt <- parse_args(OptionParser(option_list=option_list))
 
@@ -29,8 +31,20 @@ group <- factor(meta_sub$type, levels=c(opt$control, "IP"))
 keep <- rowSums(edgeR::cpm(counts, normalized.lib.sizes=TRUE) > opt$min_cpm) >= 2
 counts_filt <- counts[keep,, drop=FALSE]
 
+# Build design based on --batch_correct flag
+if (tolower(opt$batch_correct) == "true") {
+  batch <- factor(meta_sub$batch)
+  col_data <- DataFrame(group=group, batch=batch)
+  design  <- ~ batch + group
+  cat("Design: ~ batch + group (batch-corrected)\n")
+} else {
+  col_data <- DataFrame(group=group)
+  design  <- ~ group
+  cat("Design: ~ group (no batch correction)\n")
+}
+
 # DESeq2
-dds <- DESeqDataSetFromMatrix(round(counts_filt), DataFrame(group=group), ~group)
+dds <- DESeqDataSetFromMatrix(round(counts_filt), col_data, design)
 colData(dds)$group <- relevel(colData(dds)$group, ref=opt$control)
 dds    <- DESeq(dds, quiet=TRUE)
 result <- na.omit(as.data.frame(results(dds)))
