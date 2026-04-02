@@ -1,6 +1,6 @@
 # eCLIP-seq Analysis Pipeline
 
-A Snakemake pipeline for end-to-end processing of single-end enhanced CLIP (eCLIP) sequencing data, from raw FASTQ files through differential enrichment analysis, strand-specific peak calling, and motif discovery. Designed for execution on the Northwestern Quest HPC cluster (SLURM, allocation `p32170`).
+A Snakemake pipeline for end-to-end processing of single-end enhanced CLIP (eCLIP) sequencing data, from raw FASTQ files through differential enrichment analysis, strand-specific peak calling, and motif discovery. 
 
 ---
 
