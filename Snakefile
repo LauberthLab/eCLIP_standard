@@ -524,23 +524,7 @@ rule macs_combined:
 # ─────────────────────────────────────────────────────────────────────────────
 # 16. HOMER motif finding on every narrowPeak (individual + combined)
 # ─────────────────────────────────────────────────────────────────────────────
-rule homer_motif:
-    input:  peaks=f"{RESULTS}/peaks/{{condition}}/{{peak_name}}_peaks.narrowPeak"
-    output: html=f"{RESULTS}/motifs/{{condition}}/{{peak_name}}/homerResults.html"
-    params:
-        outdir=f"{RESULTS}/motifs/{{condition}}/{{peak_name}}",
-        genome=HOMER_GENOME, preparsed=HOMER_PREPARSED, lengths=HOMER_LEN
-    log:    f"{RESULTS}/logs/motifs/{{condition}}/{{peak_name}}.log"
-    resources: ntasks=16, mem="32gb", time="4:00:00", partition="short", account="p32170"
-    shell:
-        """
-        mkdir -p {params.outdir} {params.preparsed}
-        findMotifsGenome.pl \
-            {input.peaks} {params.genome} {params.outdir} \
-            -p {resources.ntasks} -rna -S 10 \
-            -len {params.lengths} \
-            -preparsedDir {params.preparsed} 2> {log}
-        """
+
 
 rule homer_motif:
     input:  peaks=f"{RESULTS}/peaks/{{condition}}/{{peak_name}}_peaks.narrowPeak"
