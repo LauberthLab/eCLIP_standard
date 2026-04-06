@@ -188,7 +188,7 @@ rule fastqc_raw:
         zip  = f"{RESULTS}/qc/fastqc/{{sample}}_fastqc.zip",
     params: outdir = f"{RESULTS}/qc/fastqc"
     log:    f"{RESULTS}/logs/fastqc/{{sample}}.log"
-    resources: ntasks=4, mem="8gb", time="0:30:00", partition="short", account="p32170"
+    resources: ntasks=4, mem="8gb", time="0:30:00"
     shell:
         """
         mkdir -p {params.outdir}
@@ -210,7 +210,7 @@ rule trim_galore:
         report  = f"{RESULTS}/trimmed/{{sample}}_trimming_report.txt",
     params: outdir = f"{RESULTS}/trimmed"
     log:    f"{RESULTS}/logs/trim_galore/{{sample}}.log"
-    resources: ntasks=4, mem="30gb", time="1:00:00", partition="short", account="p32170"
+    resources: ntasks=4, mem="30gb", time="1:00:00"
     shell:
         """
         mkdir -p {params.outdir}
@@ -231,7 +231,7 @@ rule star_align:
         log = f"{RESULTS}/aligned/{{sample}}Log.final.out",
     params: genome=GENOME, prefix=f"{RESULTS}/aligned/{{sample}}"
     log:    f"{RESULTS}/logs/star/{{sample}}.log"
-    resources: ntasks=20, mem="100gb", time="2:00:00", partition="short", account="p32170"
+    resources: ntasks=20, mem="100gb", time="2:00:00"
     shell:
         """
         mkdir -p {RESULTS}/aligned
@@ -252,7 +252,7 @@ rule samtools_index:
     input:  f"{RESULTS}/aligned/{{sample}}Aligned.sortedByCoord.out.bam"
     output: f"{RESULTS}/aligned/{{sample}}Aligned.sortedByCoord.out.bam.bai"
     log:    f"{RESULTS}/logs/samtools_index/{{sample}}.log"
-    resources: ntasks=8, mem="8gb", time="0:30:00", partition="short", account="p32170"
+    resources: ntasks=8, mem="8gb", time="0:30:00"
     shell:  "samtools index -@ {resources.ntasks} {input} 2> {log}"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -265,7 +265,7 @@ rule featurecounts:
         summary = f"{RESULTS}/counts/raw_counts.txt.summary",
     params: gtf=GTF, outdir=f"{RESULTS}/counts"
     log:    f"{RESULTS}/logs/featurecounts/featurecounts.log"
-    resources: ntasks=6, mem="16gb", time="1:00:00", partition="short", account="p32170"
+    resources: ntasks=6, mem="16gb", time="1:00:00"
     shell:
         """
         mkdir -p {params.outdir}
@@ -310,7 +310,7 @@ rule deseq2:
         min_cpm=config.get("min_cpm",0.3), lfc_thresh=config.get("lfc_threshold",0.5849),
         padj_thresh=config.get("padj_threshold",0.05)
     log:    f"{RESULTS}/logs/deseq2/{{condition}}_vs_{{control}}.log"
-    resources: ntasks=2, mem="16gb", time="1:00:00", partition="short", account="p32170"
+    resources: ntasks=2, mem="16gb", time="1:00:00"
     shell:
         """
         mkdir -p {RESULTS}/de
@@ -328,7 +328,7 @@ rule merge_bams:
     input:  bams=get_bams_for_merge, indices=get_bam_indices_for_merge
     output: bam=f"{RESULTS}/merged/{{condition}}_{{stype}}_merged.bam"
     log:    f"{RESULTS}/logs/merge/{{condition}}_{{stype}}.log"
-    resources: ntasks=16, mem="16gb", time="1:00:00", partition="short", account="p32170"
+    resources: ntasks=16, mem="16gb", time="1:00:00"
     shell:
         """
         mkdir -p {RESULTS}/merged
@@ -343,7 +343,7 @@ rule index_merged_bam:
     input:  f"{RESULTS}/merged/{{condition}}_{{stype}}_merged.bam"
     output: f"{RESULTS}/merged/{{condition}}_{{stype}}_merged.bam.bai"
     log:    f"{RESULTS}/logs/merge/{{condition}}_{{stype}}_index.log"
-    resources: ntasks=8, mem="8gb", time="0:30:00", partition="short", account="p32170"
+    resources: ntasks=8, mem="8gb", time="0:30:00"
     shell:  "samtools index -@ {resources.ntasks} {input} 2> {log}"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -353,7 +353,7 @@ rule bamcompare_individual:
     input:  ip_bam=get_ip_bam, ctrl_bam=get_ctrl_bam, ip_bai=get_ip_bai, ctrl_bai=get_ctrl_bai
     output: f"{RESULTS}/bigwigs/{{condition}}_rep{{rep}}_IP_vs_{{ctrl}}_bs{BIN_SIZE}.bw"
     log:    f"{RESULTS}/logs/bigwigs/{{condition}}_rep{{rep}}_vs_{{ctrl}}.log"
-    resources: ntasks=16, mem="16gb", time="2:00:00", partition="short", account="p32170"
+    resources: ntasks=16, mem="16gb", time="2:00:00"
     shell:
         """
         mkdir -p {RESULTS}/bigwigs
@@ -373,7 +373,7 @@ rule bamcompare_merged:
         ctrl_bai = f"{RESULTS}/merged/{{condition}}_{{ctrl}}_merged.bam.bai",
     output: f"{RESULTS}/bigwigs/{{condition}}_merged_IP_vs_{{ctrl}}_bs{BIN_SIZE}.bw"
     log:    f"{RESULTS}/logs/bigwigs/{{condition}}_merged_vs_{{ctrl}}.log"
-    resources: ntasks=16, mem="16gb", time="2:00:00", partition="short", account="p32170"
+    resources: ntasks=16, mem="16gb", time="2:00:00"
     shell:
         """
         mkdir -p {RESULTS}/bigwigs
@@ -389,7 +389,7 @@ rule fingerprint:
     input:  ip_bam=get_ip_bam, ctrl_bam=get_ctrl_bam, ip_bai=get_ip_bai, ctrl_bai=get_ctrl_bai
     output: f"{RESULTS}/qc/fingerprint/{{condition}}_rep{{rep}}_IP_vs_{{ctrl}}.png"
     log:    f"{RESULTS}/logs/fingerprint/{{condition}}_rep{{rep}}_vs_{{ctrl}}.log"
-    resources: ntasks=8, mem="8gb", time="1:00:00", partition="short", account="p32170"
+    resources: ntasks=8, mem="8gb", time="1:00:00"
     shell:
         """
         mkdir -p {RESULTS}/qc/fingerprint
@@ -411,7 +411,7 @@ rule multiqc:
     output: f"{RESULTS}/qc/multiqc_report.html"
     params: outdir=f"{RESULTS}/qc", scandir=RESULTS
     log:    f"{RESULTS}/logs/multiqc/multiqc.log"
-    resources: ntasks=2, mem="8gb", time="0:30:00", partition="short", account="p32170"
+    resources: ntasks=2, mem="8gb", time="0:30:00"
     shell:  "multiqc {params.scandir} -o {params.outdir} --force 2> {log}"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -427,7 +427,7 @@ rule split_strand:
         plus  = f"{RESULTS}/stranded/{{sample}}_plus.bam",
         minus = f"{RESULTS}/stranded/{{sample}}_minus.bam",
     log:    f"{RESULTS}/logs/stranded/{{sample}}.log"
-    resources: ntasks=8, mem="8gb", time="0:30:00", partition="short", account="p32170"
+    resources: ntasks=8, mem="8gb", time="0:30:00"
     shell:
         """
         mkdir -p {RESULTS}/stranded
@@ -450,7 +450,7 @@ rule merge_igg_stranded:
         bam = f"{RESULTS}/stranded/{{condition}}_IgG_merged_{{strand}}.bam",
         bai = f"{RESULTS}/stranded/{{condition}}_IgG_merged_{{strand}}.bam.bai",
     log:    f"{RESULTS}/logs/stranded/{{condition}}_IgG_merged_{{strand}}.log"
-    resources: ntasks=16, mem="16gb", time="0:30:00", partition="short", account="p32170"
+    resources: ntasks=16, mem="16gb", time="0:30:00"
     shell:
         """
         mkdir -p {RESULTS}/stranded
@@ -479,7 +479,7 @@ rule macs_individual:
     params: outdir=f"{RESULTS}/peaks/{{condition}}", name="{sample}_{strand}",
             gsize=GENOME_SIZE, ext=EXTSIZE, macs=MACS_CMD
     log:    f"{RESULTS}/logs/peaks/{{condition}}/{{sample}}_{{strand}}.log"
-    resources: ntasks=4, mem="16gb", time="1:00:00", partition="short", account="p32170"
+    resources: ntasks=4, mem="16gb", time="1:00:00"
     shell:
         """
         mkdir -p {params.outdir}
@@ -509,7 +509,7 @@ rule macs_combined:
     params: outdir=f"{RESULTS}/peaks/{{condition}}", name="combined_{strand}",
             gsize=GENOME_SIZE, ext=EXTSIZE, macs=MACS_CMD
     log:    f"{RESULTS}/logs/peaks/{{condition}}/combined_{{strand}}.log"
-    resources: ntasks=4, mem="16gb", time="1:00:00", partition="short", account="p32170"
+    resources: ntasks=4, mem="16gb", time="1:00:00"
     shell:
         """
         mkdir -p {params.outdir}
@@ -533,7 +533,7 @@ rule homer_motif:
         outdir=f"{RESULTS}/motifs/{{condition}}/{{peak_name}}",
         genome=HOMER_GENOME, preparsed=HOMER_PREPARSED, lengths=HOMER_LEN
     log:    f"{RESULTS}/logs/motifs/{{condition}}/{{peak_name}}.log"
-    resources: ntasks=16, mem="32gb", time="4:00:00", partition="short", account="p32170", homer_lock=1
+    resources: ntasks=16, mem="32gb", time="4:00:00", homer_lock=1
     shell:
         """
         mkdir -p {params.outdir} {params.preparsed}
