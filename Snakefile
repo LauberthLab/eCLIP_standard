@@ -17,7 +17,8 @@ Steps:
   13. merge_igg_stranded – merge IgG replicates per strand per condition
   14. macs_individual  – MACS2 per IP replicate × strand vs merged IgG
   15. macs_combined    – MACS2 all IP reps pooled × strand vs merged IgG
-  16. homer_motif      – findMotifsGenome.pl on every narrowPeak
+  16. intersect_peaks  – merge strands + intersect reps → final peak set
+  17. homer_motif      – findMotifsGenome.pl on final reproducible peaks
 
 Metadata TSV columns: sample, condition, type (IP|IgG|Input), replicate, fastq
 
@@ -49,6 +50,7 @@ shell.prefix(
     "module load homer; "
     "module load multiqc; "
     "module load R/4.2.0; "
+    "module load bedtools; "
 )
 
 RESULTS = config["results_dir"]
@@ -145,7 +147,8 @@ de_sig_targets = [f"{RESULTS}/de/{c}_IP_vs_{ctrl}_significant.tsv" for c, ctrl i
 
 # Peak calling targets (strand-specific, IgG control only)
 STRANDS = ["plus", "minus"]
-indiv_peak_targets, combined_peak_targets, homer_targets = [], [], []
+indiv_peak_targets, combined_peak_targets = [], []
+final_peak_targets, final_homer_targets = [], []
 for cond in conditions:
     ip_samps  = samples_of(type_="IP",  condition=cond)
     igg_samps = samples_of(type_="IgG", condition=cond)
@@ -154,9 +157,9 @@ for cond in conditions:
     for strand in STRANDS:
         for samp in ip_samps:
             indiv_peak_targets.append(f"{RESULTS}/peaks/{cond}/{samp}_{strand}_peaks.narrowPeak")
-            homer_targets.append(f"{RESULTS}/motifs/{cond}/{samp}_{strand}/homerResults.html")
         combined_peak_targets.append(f"{RESULTS}/peaks/{cond}/combined_{strand}_peaks.narrowPeak")
-        homer_targets.append(f"{RESULTS}/motifs/{cond}/combined_{strand}/homerResults.html")
+    final_peak_targets.append(f"{RESULTS}/peaks/{cond}/final_peaks.narrowPeak")
+    final_homer_targets.append(f"{RESULTS}/motifs/{cond}/final/homerResults.html")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # rule all
@@ -176,7 +179,8 @@ rule all:
         f"{RESULTS}/qc/multiqc_report.html",
         indiv_peak_targets,
         combined_peak_targets,
-        homer_targets,
+        final_peak_targets,
+        final_homer_targets,
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. FastQC – raw reads
@@ -463,7 +467,7 @@ rule merge_igg_stranded:
         """
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 14. MACS2 – individual IP replicate vs merged IgG (per strand)
+# 14. MACS – individual IP replicate vs merged IgG (per strand)
 # ─────────────────────────────────────────────────────────────────────────────
 def _ip_condition(wildcards):
     return meta.loc[wildcards.sample, "condition"]
@@ -492,7 +496,7 @@ rule macs_individual:
         """
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 15. MACS2 – all IP replicates combined vs merged IgG (per strand)
+# 15. MACS – all IP replicates combined vs merged IgG (per strand)
 # ─────────────────────────────────────────────────────────────────────────────
 def get_all_ip_stranded_bams(wildcards):
     return [f"{RESULTS}/stranded/{s}_{wildcards.strand}.bam"
@@ -522,17 +526,73 @@ rule macs_combined:
         """
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 16. HOMER motif finding on every narrowPeak (individual + combined)
+# 16. Merge strands + intersect reps → final reproducible peak set
 # ─────────────────────────────────────────────────────────────────────────────
+def _ip_samples_for_condition(wildcards):
+    return samples_of(type_="IP", condition=wildcards.condition)
 
+def _get_indiv_strand_peaks(wildcards):
+    """All per-rep, per-strand narrowPeaks for this condition."""
+    samps = _ip_samples_for_condition(wildcards)
+    return [f"{RESULTS}/peaks/{wildcards.condition}/{s}_{strand}_peaks.narrowPeak"
+            for s in samps for strand in STRANDS]
 
-rule homer_motif:
-    input:  peaks=f"{RESULTS}/peaks/{{condition}}/{{peak_name}}_peaks.narrowPeak"
-    output: html=f"{RESULTS}/motifs/{{condition}}/{{peak_name}}/homerResults.html"
+rule intersect_peaks:
+    input:
+        indiv      = _get_indiv_strand_peaks,
+        comb_plus  = f"{RESULTS}/peaks/{{condition}}/combined_plus_peaks.narrowPeak",
+        comb_minus = f"{RESULTS}/peaks/{{condition}}/combined_minus_peaks.narrowPeak",
+    output:
+        final = f"{RESULTS}/peaks/{{condition}}/final_peaks.narrowPeak",
     params:
-        outdir=f"{RESULTS}/motifs/{{condition}}/{{peak_name}}",
+        outdir     = f"{RESULTS}/peaks/{{condition}}",
+        ip_samples = _ip_samples_for_condition,
+    log: f"{RESULTS}/logs/peaks/{{condition}}/intersect.log"
+    resources: ntasks=2, mem="8gb", time="0:30:00"
+    shell:
+        """
+        set -euo pipefail
+        # 1. Merge strands per replicate
+        rep_beds=()
+        for samp in {params.ip_samples}; do
+            cat {params.outdir}/${{samp}}_plus_peaks.narrowPeak \
+                {params.outdir}/${{samp}}_minus_peaks.narrowPeak \
+              | sort -k1,1 -k2,2n > {params.outdir}/${{samp}}_all.narrowPeak
+            rep_beds+=( {params.outdir}/${{samp}}_all.narrowPeak )
+        done
+
+        # 2. Merge strands for combined
+        cat {input.comb_plus} {input.comb_minus} \
+          | sort -k1,1 -k2,2n > {params.outdir}/combined_all.narrowPeak
+
+        # 3. Intersect: combined peaks supported by every replicate
+        cp {params.outdir}/combined_all.narrowPeak {params.outdir}/_intersect_tmp.narrowPeak
+        for bed in "${{rep_beds[@]}}"; do
+            bedtools intersect \
+                -a {params.outdir}/_intersect_tmp.narrowPeak \
+                -b "$bed" -u \
+              > {params.outdir}/_intersect_next.narrowPeak
+            mv {params.outdir}/_intersect_next.narrowPeak \
+               {params.outdir}/_intersect_tmp.narrowPeak
+        done
+        mv {params.outdir}/_intersect_tmp.narrowPeak {output.final}
+
+        # Clean up intermediates
+        rm -f {params.outdir}/*_all.narrowPeak
+
+        wc -l {output.final} > {log}
+        """
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 17. HOMER motif finding on final reproducible peak set
+# ─────────────────────────────────────────────────────────────────────────────
+rule homer_motif:
+    input:  peaks=f"{RESULTS}/peaks/{{condition}}/final_peaks.narrowPeak"
+    output: html=f"{RESULTS}/motifs/{{condition}}/final/homerResults.html"
+    params:
+        outdir=f"{RESULTS}/motifs/{{condition}}/final",
         genome=HOMER_GENOME, preparsed=HOMER_PREPARSED, lengths=HOMER_LEN
-    log:    f"{RESULTS}/logs/motifs/{{condition}}/{{peak_name}}.log"
+    log:    f"{RESULTS}/logs/motifs/{{condition}}/final.log"
     resources: ntasks=16, mem="32gb", time="4:00:00", homer_lock=1
     shell:
         """
