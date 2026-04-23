@@ -119,8 +119,14 @@ all_samples  = meta["sample"].tolist()
 ip_samples   = samples_of(type_="IP")
 avail_ctrls  = [t for t in ["IgG", "Input"] if t in meta["type"].values]
 
+
 wildcard_constraints:
-    sample = "|".join(re.escape(s) for s in all_samples)
+    sample    = "|".join(re.escape(s) for s in all_samples),
+    condition = "|".join(re.escape(c) for c in conditions),
+    stype     = "IP|IgG|Input",
+    ctrl      = "IgG|Input",
+    rep       = r"\d+"  # Ensures replicate is always a number
+
 
 de_pairs = [
     (c, DE_CTRL) for c in conditions

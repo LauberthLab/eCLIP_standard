@@ -18,7 +18,7 @@ lfc_threshold:  0.5849
 padj_threshold: 0.05
 
 # ── BigWig generation (bamCompare) ───────────────────────────────────────────
-bin_size:        1
+bin_size:        50
 normalize_using: "RPKM"   # RPKM | CPM | BPM | RPGC | None
 pseudocount:     1
 
