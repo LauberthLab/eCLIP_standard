@@ -11,7 +11,7 @@ cluster:
     --error=results/logs/slurm/{rule}_%j.err"
 
 default-resources:
-  - account="p32170"
+  - account="your_slurm_account"
   - partition="short"
   - ntasks=4
   - mem="8gb"
