@@ -1,31 +1,36 @@
 # eCLIP-seq Analysis Pipeline
 
-A Snakemake pipeline for end-to-end processing of single-end enhanced CLIP (eCLIP) sequencing data, from raw FASTQ files through differential enrichment analysis, strand-specific peak calling, and motif discovery. 
+A Snakemake pipeline for end-to-end processing of single-end enhanced CLIP (eCLIP) sequencing data, from raw FASTQ files through UMI-aware deduplication, differential enrichment analysis, strand-specific peak calling, and motif discovery.
 
 ---
 
 ## Overview
 
-The pipeline performs 16 sequential steps:
+The pipeline performs the following sequential steps:
 
 | Step | Tool | Description |
 |------|------|-------------|
-| 1 | FastQC | Quality check on raw reads |
-| 2 | Trim Galore | Illumina adapter trimming + quality filtering (Q ≥ 28) |
+| 0 | UMI-tools `extract` | Move the 5′ UMI into the read name (before trimming) |
+| 1 | FastQC | Quality check on raw reads (pre-extraction) |
+| 2 | Trim Galore | Illumina adapter trimming + quality filtering (Q ≥ 28), on UMI-extracted reads |
 | 3 | STAR | Alignment to hg38 (EndToEnd, unique mappers only) |
 | 4 | samtools | BAM indexing |
-| 5 | featureCounts | Strand-specific gene-level read counting (all samples jointly) |
-| 6 | process_fc.py | Tidy the raw counts matrix (clean column names, drop annotation columns) |
-| 7 | DESeq2 | Differential enrichment: IP vs IgG (default) or IP vs Input |
-| 8 | samtools merge | Merge replicate BAMs per condition × sample type |
+| 4b | UMI-tools `dedup` | UMI-aware PCR-duplicate removal (5′ coordinate + UMI) |
+| 5 | featureCounts | Strand-specific gene-level read counting on deduplicated BAMs (all samples jointly) |
+| 6 | process counts | Tidy the raw counts matrix (clean column names, drop annotation columns) |
+| 7 | DESeq2 | Differential enrichment: IP vs IgG |
+| 8 | samtools merge | Merge replicate deduplicated BAMs per condition × sample type |
 | 9 | bamCompare | Log2-ratio bigWig generation (individual replicates + merged) |
 | 10 | plotFingerprint | Enrichment QC (IP vs control cumulative read distribution) |
-| 11 | MultiQC | Aggregated QC report across all steps |
-| 12 | samtools | Split aligned BAMs into plus- and minus-strand |
-| 13 | samtools merge | Merge IgG replicates per strand per condition (peak calling control) |
+| 11 | MultiQC | Aggregated QC report across all steps (incl. UMI-tools dedup stats) |
+| 12 | samtools | Split deduplicated BAMs into plus- and minus-strand |
+| 13 | samtools merge | Merge IgG replicates per strand per condition (peak-calling control) |
 | 14 | MACS3 | Peak calling — individual IP replicates vs merged IgG, per strand |
 | 15 | MACS3 | Peak calling — pooled IP replicates vs merged IgG, per strand |
-| 16 | HOMER | De novo motif discovery on every narrowPeak file (`-rna` mode) |
+| 16 | BEDTools | Reproducible peak set: pooled-IP peaks overlapping a peak in every replicate |
+| 17 | HOMER | De novo motif discovery on the final reproducible peak set (`-rna` mode) |
+
+**Why UMI dedup matters here.** UMIs are extracted at the 5′ end before trimming and used after alignment to collapse reads sharing both a 5′ mapping coordinate and a UMI — i.e. genuine PCR duplicates. Because duplicates are removed this way, `--keep-dup all` in the MACS3 rules is **correct**: reads still sharing a coordinate after dedup carry distinct UMIs and represent independent crosslink events that should be retained.
 
 ---
 
@@ -33,12 +38,14 @@ The pipeline performs 16 sequential steps:
 
 ```
 .
-├── Snakefile                 # Main workflow definition (all 16 rules)
+├── Snakefile                 # Main workflow definition
 ├── config.yaml               # Pipeline parameters (paths, thresholds, tool options)
-├── config.yaml (profile)     # SLURM profile config (sbatch template, default resources)
-├── metadata.tsv              # Sample sheet (sample ↔ condition ↔ type ↔ replicate ↔ FASTQ)
+├── envs/
+│   └── eclip.yaml            # Conda environment used by --use-conda rules
+├── metadata.tsv              # Sample sheet (sample ↔ condition ↔ type ↔ replicate ↔ batch ↔ FASTQ)
+├── slurm_profile/            # SLURM profile (account, partition, default resources)
+│   └── config.yaml
 └── scripts/
-    ├── process_fc.py         # Tidy featureCounts output
     └── de_analysis.R         # DESeq2 differential enrichment analysis
 ```
 
@@ -46,22 +53,16 @@ The pipeline performs 16 sequential steps:
 
 ## Requirements
 
-### Software
+Most tools are provisioned automatically per-rule via `--use-conda` from `envs/eclip.yaml`. Two rules deliberately use Quest **modules** instead of conda, to avoid heavyweight conda solves:
 
-The following tools must be available in `$PATH` (e.g., via `module load` on Quest):
+- **DESeq2** (`deseq2` rule) uses `module load R/4.2.0` with `DESeq2`, `edgeR`, `optparse`.
+- **HOMER** (`homer_motif` rule) uses `module load homer`, because the module ships the pre-installed hg38 genome package (a fresh conda HOMER does not).
 
-- **Snakemake** ≥ 7.32 (recommended: install via mamba into a dedicated conda env)
-- **FastQC**
-- **Trim Galore** (includes Cutadapt)
-- **STAR** (with a pre-built hg38 genome index)
-- **samtools**
-- **Subread** (featureCounts)
-- **deepTools** (bamCompare, plotFingerprint)
-- **MACS2** (or MACS3; set `macs_cmd` in config)
-- **HOMER** (findMotifsGenome.pl; hg38 genome must be installed)
-- **MultiQC**
-- **R** with packages: `DESeq2`, `edgeR`, `optparse`
-- **Python 3** with `pandas`
+### Conda environment (`envs/eclip.yaml`)
+
+Provides: UMI-tools (1.1.4), FastQC, Trim Galore (+ Cutadapt), STAR (2.7.5a), samtools (1.6), Subread (featureCounts), deepTools (bamCompare, plotFingerprint), MACS3 (3.0.2), BEDTools, MultiQC, pandas.
+
+Snakemake itself should be installed separately (recommended: `mamba create -n snake snakemake`). STAR requires a pre-built hg38 index; if using the module HOMER, the hg38 genome package must already be installed system-wide (it is, on Quest).
 
 ### Reference Files
 
@@ -74,7 +75,7 @@ The following tools must be available in `$PATH` (e.g., via `module load` on Que
 
 ## Metadata Format
 
-The pipeline is driven by a tab-separated `metadata.tsv` file with the following required columns:
+Tab-separated `metadata.tsv` with the following required columns (note: `fastq` is the **sixth** column — a `batch` column precedes it):
 
 | Column | Description |
 |--------|-------------|
@@ -82,18 +83,19 @@ The pipeline is driven by a tab-separated `metadata.tsv` file with the following
 | `condition` | Experimental condition grouping (e.g., `TOP1`) |
 | `type` | One of `IP`, `IgG`, or `Input` |
 | `replicate` | Integer replicate number |
+| `batch` | Prep/sequencing batch label |
 | `fastq` | Absolute path to the raw `.fastq.gz` file |
 
 Example:
 
 ```
-sample              condition  type   replicate  fastq
-21161FL-30-01_S1    TOP1       IP     1          /path/to/sample_R1.fastq.gz
-21161FL-30-05_S5    TOP1       IgG    1          /path/to/igg_R1.fastq.gz
-21161FL-30-03_S3    TOP1       Input  1          /path/to/input_R1.fastq.gz
+sample              condition  type   replicate  batch     fastq
+21161FL-30-01_S1    TOP1       IP     1          batch_30  /path/to/sample_R1.fastq.gz
+21161FL-30-05_S5    TOP1       IgG    1          batch_30  /path/to/igg_R1.fastq.gz
+21161FL-30-03_S3    TOP1       Input  1          batch_30  /path/to/input_R1.fastq.gz
 ```
 
-The pipeline automatically derives all pairwise comparisons (IP vs IgG, IP vs Input) and merging groups from this file. Peak calling (steps 12–16) uses IgG as the control and is only run for conditions where both IP and IgG samples exist.
+**Input samples are excluded from all processing.** Any row with `type == Input` is filtered out at load time and is never extracted, aligned, counted, or used as a control. Peak calling uses IgG as the control and runs only for conditions where both IP and IgG samples exist.
 
 ---
 
@@ -108,63 +110,67 @@ All tunable parameters live in `config.yaml`:
 - `gtf` — Gencode annotation GTF
 - `results_dir` — top-level output directory (created automatically)
 
+### UMI Deduplication (UMI-tools)
+
+- `umi_pattern` — barcode pattern passed to `extract --bc-pattern` (default `"NNNNNNNNNN"`, a 10-nt 5′ UMI)
+- `umi_method` — dedup collapse method (`directional` recommended; `unique` does no error correction and under-collapses)
+
 ### Differential Enrichment (DESeq2)
 
-- `de_control` — which type to use as the baseline: `"IgG"` (default) or `"Input"`
-- `min_cpm` — CPM filter threshold (genes with CPM > this value in ≥ 2 samples are retained; default `0.3`)
-- `lfc_threshold` — minimum log2 fold-change for significance (default `0.5849`, i.e., ~1.5-fold)
+- `de_control` — baseline type: `"IgG"` (default)
+- `min_cpm` — CPM filter threshold (default `0.3`)
+- `lfc_threshold` — minimum log2 fold-change for significance (default `0.5849`, ~1.5-fold)
 - `padj_threshold` — adjusted p-value cutoff (default `0.05`)
 
 ### BigWig Generation (bamCompare)
 
-- `bin_size` — genomic bin size in bp (default `1`)
-- `normalize_using` — normalization method: `RPKM`, `CPM`, `BPM`, `RPGC`, or `None`
+- `bin_size` — genomic bin size in bp (default `1`, single-base resolution)
+- `normalize_using` — `RPKM`, `CPM`, `BPM`, `RPGC`, or `None`
 - `pseudocount` — pseudocount added before log2 ratio (default `1`)
 
-### Peak Calling (MACS2)
+### Peak Calling (MACS3)
 
-- `macs_cmd` — executable name (`macs2` or `macs3`)
-- `genome_size` — effective genome size (`hs` for human, `mm` for mouse)
-- `extsize` — fragment extension size in `--nomodel` mode (default `30`)
+- `macs_cmd` — executable name (`macs3`)
+- `genome_size` — effective genome size (`hs` for human)
+- `extsize` — read extension size in `--nomodel` mode (default `30`)
 
 ### Motif Finding (HOMER)
 
-- `homer_genome` — HOMER genome build (default `hg38`)
+- `homer_genome` — HOMER genome build (default `hg38`; requires the module HOMER with hg38 installed)
 - `homer_preparsed_dir` — shared cache directory for HOMER preparsed files
-- `homer_len` — comma-separated list of motif lengths to search (default `"5,6,7,8,9,10"`)
+- `homer_len` — comma-separated motif lengths (default `"5,6,7,8,9,10"`)
 
 ---
 
 ## Usage
 
-### 1. Set up the SLURM profile
+The SLURM account and partition live in `slurm_profile/config.yaml`, not in the Snakefile.
 
-Place the cluster `config.yaml` (the SLURM profile) in a directory accessible to Snakemake — for example:
+### 1. Activate the Snakemake environment
 
 ```bash
-mkdir -p ~/.config/snakemake/slurm_profile
-cp config.yaml ~/.config/snakemake/slurm_profile/config.yaml  # the SLURM profile version
+mamba activate snake   # environment containing Snakemake
 ```
 
-### 2. Activate the environment
+### 2. Pre-build the conda env once (so it is not on the clock during the run)
 
 ```bash
-mamba activate snake   # or your Snakemake conda env
+snakemake --use-conda --conda-create-envs-only --cores 1
 ```
 
 ### 3. Dry run
 
 ```bash
-snakemake -n --profile slurm_profile
+snakemake --profile slurm_profile --use-conda -n
 ```
 
 ### 4. Execute
 
 ```bash
-snakemake --profile slurm_profile --cores all
+snakemake --profile slurm_profile --use-conda --cores <N>
 ```
 
-The profile sets `jobs: 50`, `latency-wait: 60`, `keep-going: true`, and `rerun-incomplete: true` by default. Two rules (`all` and `process_featurecounts`) run locally.
+Set `--cores` at least as high as the largest rule's `threads` (STAR uses 20), or per-rule thread requests will be clamped. The profile controls concurrent SLURM jobs (`jobs: 50`), `latency-wait`, `keep-going`, and `rerun-incomplete`. Rules `all` and `process_featurecounts` run locally. Because each rule submits its own SLURM job with its own resources, samples are processed in parallel across the cluster.
 
 ---
 
@@ -172,53 +178,61 @@ The profile sets `jobs: 50`, `latency-wait: 60`, `keep-going: true`, and `rerun-
 
 ```
 results/
+├── umi/                              # UMI-extracted FASTQs
 ├── qc/
 │   ├── fastqc/                       # Per-sample FastQC reports
 │   ├── fingerprint/                  # plotFingerprint PNGs (IP vs control)
-│   └── multiqc_report.html           # Aggregated QC report
+│   └── multiqc_report.html           # Aggregated QC report (incl. dedup stats)
 ├── trimmed/                          # Adapter-trimmed FASTQs + trimming reports
 ├── aligned/                          # STAR-aligned BAMs + indices + STAR logs
+├── dedup/                            # UMI-deduplicated BAMs + indices
 ├── counts/
 │   ├── raw_counts.txt                # featureCounts raw output
 │   ├── raw_counts.txt.summary        # Assignment summary
 │   └── processed_counts.txt          # Tidied counts matrix
 ├── de/
-│   ├── {condition}_IP_vs_{ctrl}_all.tsv          # Full DESeq2 results
-│   └── {condition}_IP_vs_{ctrl}_significant.tsv  # Filtered significant hits
-├── merged/                           # Replicate-merged BAMs per condition × type
-├── bigwigs/                          # Log2-ratio bigWig tracks
-│   ├── {condition}_rep{N}_IP_vs_{ctrl}_bs1.bw    # Per-replicate
-│   └── {condition}_merged_IP_vs_{ctrl}_bs1.bw    # Merged
+│   ├── {condition}_IP_vs_IgG_all.tsv          # Full DESeq2 results
+│   └── {condition}_IP_vs_IgG_significant.tsv  # Filtered significant hits
+├── merged/                           # Replicate-merged deduplicated BAMs
+├── bigwigs/                          # Log2-ratio bigWig tracks (bs1)
+│   ├── {condition}_rep{N}_IP_vs_IgG_bs1.bw    # Per-replicate
+│   └── {condition}_merged_IP_vs_IgG_bs1.bw    # Merged
 ├── stranded/                         # Strand-split BAMs + merged IgG strand BAMs
-├── peaks/{condition}/                # MACS2 narrowPeak, summits, XLS
-│   ├── {sample}_{strand}_peaks.narrowPeak         # Per-replicate
-│   └── combined_{strand}_peaks.narrowPeak         # Pooled IP
-├── motifs/{condition}/               # HOMER de novo motif results
-│   ├── {sample}_{strand}/homerResults.html
-│   └── combined_{strand}/homerResults.html
-└── logs/                             # Per-rule log files
-    └── slurm/                        # SLURM stdout/stderr
+├── peaks/{condition}/                # MACS3 narrowPeak, summits, XLS
+│   ├── {sample}_{strand}_peaks.narrowPeak      # Per-replicate
+│   ├── combined_{strand}_peaks.narrowPeak      # Pooled IP
+│   └── final_peaks.narrowPeak                  # Reproducible set (all-replicate overlap)
+├── motifs/{condition}/final/         # HOMER de novo motif results on final peaks
+│   └── homerResults.html
+└── logs/                             # Per-rule log files (incl. umi_extract, umi_dedup)
 ```
 
 ---
 
 ## Key Design Decisions
 
-**Single-end, strand-specific.** The STAR alignment uses `--alignEndsType EndToEnd` with stringent filtering (`--outFilterMultimapNmax 1`, `--outFilterMatchNmin 24`), and featureCounts runs with `-s 1` (stranded counting). This reflects the single-end eCLIP library geometry.
+**UMI-aware deduplication.** A 10-nt UMI is extracted from the 5′ end before trimming and used after alignment (`dedup --method`) to collapse PCR duplicates by 5′ coordinate + UMI. This is what makes `--keep-dup all` correct at the MACS3 step. The `umi_pattern` should be confirmed against the library's actual read structure before a production run; `directional` is the recommended dedup method (error-correcting), whereas `unique` under-collapses.
 
-**Strand-aware peak calling.** BAMs are split by strand (SAM flag 0x10) before MACS2 peak calling, with merged IgG replicates serving as the control for each strand independently. This avoids artifacts from antisense signal contamination.
+**Single-end, strand-specific.** STAR uses `--alignEndsType EndToEnd` with stringent filtering (`--outFilterMultimapNmax 1`, `--outFilterMatchNmin 24`), and featureCounts runs with `-s 1`. This reflects single-end eCLIP library geometry. Note that unique-mappers-only alignment under-represents multi-copy loci (rDNA, some snoRNAs); handling of those loci should be described explicitly if they are central to the analysis.
 
-**DESeq2 enrichment model.** The R script filters low-abundance genes by CPM, then runs a standard DESeq2 model comparing IP vs control (IgG or Input). Significance is defined by both adjusted p-value and a minimum log2 fold-change threshold, which defaults to ~1.5-fold enrichment.
+**Strand-aware peak calling.** Deduplicated BAMs are split by strand (SAM flag 0x10) before MACS3, with merged IgG replicates as the per-strand control, avoiding antisense contamination artifacts.
 
-**HOMER in RNA mode.** Motif discovery uses the `-rna` flag, appropriate for identifying RNA-binding motifs from eCLIP peak sequences.
+**Reproducible peak set.** The final peak set is defined as pooled-IP peaks that overlap a called peak in every individual replicate (BEDTools `intersect`), after merging plus/minus strands. This is an overlap-based reproducibility filter rather than IDR.
+
+**HOMER in RNA mode.** Motif discovery uses `-rna`, appropriate for RNA-binding motifs, and runs on the final reproducible peak set.
 
 ---
 
 ## Troubleshooting
 
-**SLURM exit code 127 (command not found).** If running Snakemake inside a Singularity container, the container may mask SLURM binaries. Install Snakemake directly into a conda environment (e.g., `mamba create -n snake snakemake=7.32.4`) instead.
+**Truncated intermediate gzips (`EOFError: Compressed file ended before the end-of-stream marker`).** A job killed mid-write (walltime, OOM, or interrupt) can leave a partial `.fq.gz` that a downstream rule then fails to read. Test with `gzip -t <file>`; delete the truncated intermediate and rerun so Snakemake regenerates it.
 
-**HOMER preparsed directory errors.** HOMER caches genome parsing results in `homer_preparsed_dir`. Ensure this directory is writable and shared across runs to avoid redundant computation. On a shared HPC filesystem, set this to a location within your project allocation.
+**STAR runs on too few threads / `--runThreadN` lower than expected.** Snakemake sets `{threads}` to `min(rule threads, --cores)`. Launch with `--cores` at least as high as the largest rule's thread request, and confirm the SLURM profile does not pin `cpus_per_task` low.
 
-**featureCounts column name mismatches.** The `process_fc.py` script strips BAM path prefixes from featureCounts column headers. If sample names in the tidied output don't match `metadata.tsv`, check that your FASTQ filenames follow the expected `{sample}_S*` or `{sample}.bam` naming convention.
+**STAR out-of-memory.** The hg38 index needs ~32–40 GB; the rule requests more for safety. If the profile caps memory via `default-resources`, that overrides the rule — check `slurm_profile/config.yaml`.
 
+**HOMER "Genome hg38 not found."** A conda-installed HOMER ships without genome packages. Use the module HOMER (which has hg38 installed), or point `homer_genome` at an hg38 FASTA whose contig names match the peak file (the pipeline prepends `chr`).
+
+**HOMER preparsed directory.** Set `homer_preparsed_dir` to a writable, persistent location within your project allocation so preparsing is cached across runs.
+
+**Conda activation aborts with an unbound-variable error.** Some conda env deactivate hooks reference unset variables that are fatal under `set -u`. `--use-conda` avoids this by letting Snakemake manage activation per job; do not manually switch conda envs inside rule shells.
