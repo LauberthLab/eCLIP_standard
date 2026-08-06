@@ -225,10 +225,6 @@ results/
 
 ## Troubleshooting
 
-**Truncated intermediate gzips (`EOFError: Compressed file ended before the end-of-stream marker`).** A job killed mid-write (walltime, OOM, or interrupt) can leave a partial `.fq.gz` that a downstream rule then fails to read. Test with `gzip -t <file>`; delete the truncated intermediate and rerun so Snakemake regenerates it.
-
-**STAR runs on too few threads / `--runThreadN` lower than expected.** Snakemake sets `{threads}` to `min(rule threads, --cores)`. Launch with `--cores` at least as high as the largest rule's thread request, and confirm the SLURM profile does not pin `cpus_per_task` low.
-
 **STAR out-of-memory.** The hg38 index needs ~32–40 GB; the rule requests more for safety. If the profile caps memory via `default-resources`, that overrides the rule — check `slurm_profile/config.yaml`.
 
 **HOMER "Genome hg38 not found."** A conda-installed HOMER ships without genome packages. Use the module HOMER (which has hg38 installed), or point `homer_genome` at an hg38 FASTA whose contig names match the peak file (the pipeline prepends `chr`).
