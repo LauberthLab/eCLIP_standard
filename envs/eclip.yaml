@@ -1,0 +1,19 @@
+name: eclip
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.10
+  - umi_tools=1.1.4
+  - fastqc=0.12.1
+  - trim-galore=0.6.10
+  - cutadapt=4.2
+  - star=2.7.5a
+  - samtools=1.6
+  - subread=2.0.6          # featureCounts
+  - deeptools=3.5.4        # bamCompare, plotFingerprint
+  - macs3=3.0.2
+  - homer=5.1
+  - bedtools=2.31.1
+  - multiqc=1.21
+  - pandas=2.2.2

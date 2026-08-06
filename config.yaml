@@ -1,0 +1,26 @@
+results_dir: results
+genome_dir:  /projects/b1042/LauberthLab/Genome/STAR_hg38+rDNA
+gtf:         /projects/p32170/Genome/gencode.v45.annotation.gtf
+metadata:    metadata.tsv
+
+# UMI
+umi_pattern: "NNNNNNNNNN"     # CONFIRM structure before trusting a full run
+umi_method:  "unique"
+
+# DE
+de_control:    IgG
+min_cpm:       0.3
+lfc_threshold: 0.5849
+padj_threshold: 0.05
+
+# coverage
+normalize_using: RPKM
+bin_size:        1
+pseudocount:     1
+
+# peaks / motifs
+macs_cmd:     macs3
+genome_size:  hs
+extsize:      30
+homer_genome: hg38
+homer_len:    "5,6,7,8,9,10"

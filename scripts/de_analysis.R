@@ -1,0 +1,98 @@
+# Package check and setup 
+
+install_if_missing <- function(pkg, bioc=FALSE, version=NULL) {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    message(sprintf("Installing %s...", pkg))
+    
+    if (!requireNamespace("BiocManager", quietly = TRUE)) {
+      install.packages("BiocManager", repos="https://cloud.r-project.org")
+    }
+    
+    if (bioc) {
+      if (!is.null(version) && pkg == "DESeq2") {
+        install.packages(
+          "https://bioconductor.org/packages/3.16/bioc/src/contrib/DESeq2_1.38.3.tar.gz",
+          repos = NULL,
+          type = "source",
+          dependencies = TRUE
+        )
+      } else {
+        BiocManager::install(pkg, ask = FALSE, update = FALSE)
+      }
+    } else {
+      install.packages(pkg, repos="https://cloud.r-project.org")
+    }
+  }
+}
+# Install required packages
+install_if_missing("optparse")
+install_if_missing("edgeR", bioc=TRUE)
+install_if_missing("DESeq2", bioc=TRUE, version="1.38.3")
+
+# Load libraries
+suppressMessages({
+  library(DESeq2)
+  library(edgeR)
+  library(optparse)
+})
+
+
+
+
+
+option_list <- list(
+  make_option("--counts",        type="character"),
+  make_option("--metadata",      type="character"),
+  make_option("--condition",     type="character"),
+  make_option("--control",       type="character", default="IgG"),
+  make_option("--batch_correct", type="character", default="true",
+              help="Enable batch correction: true or false [default: true]"),
+  make_option("--min_cpm",       type="double",    default=0.3),
+  make_option("--lfc",           type="double",    default=0.5849),
+  make_option("--padj",          type="double",    default=0.05),
+  make_option("--out_all",       type="character"),
+  make_option("--out_sig",       type="character")
+)
+opt <- parse_args(OptionParser(option_list=option_list))
+
+# Load counts, drop Length column
+counts_raw <- read.delim(opt$counts, row.names=1, check.names=FALSE)
+counts_raw <- counts_raw[, !colnames(counts_raw) %in% "Length", drop=FALSE]
+
+# Filter metadata to this condition + control type
+meta     <- read.delim(opt$metadata)
+meta_sub <- meta[meta$condition==opt$condition & meta$type %in% c("IP",opt$control),]
+meta_sub <- meta_sub[meta_sub$sample %in% colnames(counts_raw),]
+counts   <- counts_raw[, meta_sub$sample, drop=FALSE]
+
+group <- factor(meta_sub$type, levels=c(opt$control, "IP"))
+
+# CPM filter: >min_cpm in >=2 samples
+keep <- rowSums(edgeR::cpm(counts, normalized.lib.sizes=TRUE) > opt$min_cpm) >= 2
+counts_filt <- counts[keep,, drop=FALSE]
+
+# Build design based on --batch_correct flag
+if (tolower(opt$batch_correct) == "true") {
+  batch <- factor(meta_sub$batch)
+  col_data <- DataFrame(group=group, batch=batch)
+  design  <- ~ batch + group
+  cat("Design: ~ batch + group (batch-corrected)\n")
+} else {
+  col_data <- DataFrame(group=group)
+  design  <- ~ group
+  cat("Design: ~ group (no batch correction)\n")
+}
+
+# DESeq2
+dds <- DESeqDataSetFromMatrix(round(counts_filt), col_data, design)
+colData(dds)$group <- relevel(colData(dds)$group, ref=opt$control)
+dds    <- DESeq(dds, quiet=TRUE)
+result <- na.omit(as.data.frame(results(dds)))
+result <- result[order(result$padj),]
+
+dir.create(dirname(opt$out_all), showWarnings=FALSE, recursive=TRUE)
+write.table(result, opt$out_all, sep="\t", quote=FALSE, col.names=NA)
+
+sig <- result[result$padj <= opt$padj & result$log2FoldChange >= opt$lfc,]
+write.table(sig, opt$out_sig, sep="\t", quote=FALSE, col.names=NA)
+cat(sprintf("Significant genes: %d\n", nrow(sig)))
