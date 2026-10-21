@@ -1,5 +1,8 @@
 # eCLIP-seq Analysis Pipeline
 
+Snakemake v7.32.4 and Python==3.11.15 used.
+
+
 A Snakemake pipeline for end-to-end processing of single-end enhanced CLIP (eCLIP) sequencing data, from raw FASTQ files through UMI-aware deduplication, differential enrichment analysis, strand-specific peak calling, and motif discovery.
 
 ---
