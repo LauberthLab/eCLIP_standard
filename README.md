@@ -116,7 +116,7 @@ All tunable parameters live in `config.yaml`:
 ### UMI Deduplication (UMI-tools)
 
 - `umi_pattern` — barcode pattern passed to `extract --bc-pattern` (default `"NNNNNNNNNN"`, a 10-nt 5′ UMI)
-- `umi_method` — dedup collapse method (`directional` recommended; `unique` does no error correction and under-collapses)
+- `umi_method` — dedup collapse method (`unique` used)
 
 ### Differential Enrichment (DESeq2)
 
