@@ -173,7 +173,7 @@ snakemake --profile slurm_profile --use-conda -n
 snakemake --profile slurm_profile --use-conda --cores <N>
 ```
 
-Set `--cores` at least as high as the largest rule's `threads` (STAR uses 20), or per-rule thread requests will be clamped. The profile controls concurrent SLURM jobs (`jobs: 50`), `latency-wait`, `keep-going`, and `rerun-incomplete`. Rules `all` and `process_featurecounts` run locally. Because each rule submits its own SLURM job with its own resources, samples are processed in parallel across the cluster.
+Set `--cores` at least as high as the largest rule's `threads` (STAR uses 50), or per-rule thread requests will be clamped. The profile controls concurrent SLURM jobs (`jobs: 50`), `latency-wait`, `keep-going`, and `rerun-incomplete`. Rules `all` and `process_featurecounts` run locally. Because each rule submits its own SLURM job with its own resources, samples are processed in parallel across the cluster.
 
 ---
 
